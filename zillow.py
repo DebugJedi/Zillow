@@ -13,11 +13,15 @@ import json
 import time
 import csv
 import os 
+import re
+import datetime
+
 os.chdir(r"C:\Users\PriyankRao\OneDrive - E2\Documents\Project\webscrapping")
 
 
 class ZillowScrapper():
     result = []
+    houseInfo = []
     headers = {'accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q0.8,application/signed-exchange;v=b3;q=0.9',
            'accept-encoding':'gzip, deflate, br',
            'accept-language': 'en-US,en;q=0.9',
@@ -39,14 +43,100 @@ class ZillowScrapper():
     def parse(self, response):
         content = BeautifulSoup(response, 'lxml')
         deck = content.find('ul',{'class': 'photo-cards photo-cards_wow photo-cards_short'})
+        md= content.find('script',{'data-zrr-shared-data-key': 'mobileSearchPageStore'})
+        soup = BeautifulSoup(md.string, "html.parser")
+        strings = soup.string
+        HI = re.findall(r'(?<=listResults).*?(?=resultsHash)', strings)
+        
+        for matched in re.findall(r'(?<={"zpid").*?(?="relaxed":)', strings):
+            try:
+                tax = re.findall(r'(?<="taxAssessedValue":).*?(?=,")', matched)[0]
+            except IndexError:
+                tax = ''
+            try:
+                address = re.findall(r'(?<="address":").*?(?=")', matched)[0]
+            except IndexError:
+                address = ''
+                
+            try:
+                url = re.findall(r'(?<="detailUrl":").*?(?=")', matched)[0] 
+            except IndexError:
+                url = ''
+            try:
+                price = re.findall(r'(?<="price":").*?(?=")', matched)[0]
+            except IndexError:
+                price:''
+            
+            try:
+                housetype = re.findall(r'(?<="homeType":").*?(?=")', matched)[0]
+            except IndexError:
+                housetype = ''
+                
+            try:
+                currency = re.findall(r'(?<="currency":").*?(?=")', matched)[0]
+            except IndexError:
+                currency = ''
+                
+            try:
+                lotareaunit = re.findall(r'(?<="lotAreaUnit":").*?(?=")', matched)[0]
+            except IndexError:
+                lotareaunit = ''
+            
+            try:
+                zipcode = re.findall(r'(?<="zipcode":").*?(?=")', matched)[0]
+            except:
+                zipcode = ''
+            
+            try:
+                latitude = re.findall(r'(?<={"latitude":).*?(?=,")', matched)[0]
+            except IndexError:
+                latitude = ''
+            try:
+                longitude = re.findall(r'(?<="longitude":).*?(?=},")', matched)[0]
+            except IndexError:
+                longitude = ''
+            try:
+                bath = re.findall(r'(?<="bathrooms":).*?(?=,")', matched)[0]
+            except IndexError:
+                bath = ''
+            try:
+                bed = re.findall(r'(?<="bedrooms":).*?(?=,")', matched)[0]
+            except IndexError:
+                bed = ''
+            try:
+                living = re.findall(r'(?<="livingArea":).*?(?=,")', matched)[0]
+            except IndexError:
+                living = ''    
+            try:
+                lotarea = re.findall(r'(?<="lotAreaValue":).*?(?=,")', matched)[0]
+            except IndexError:
+                lotarea = '' 
+                
+            
+            self.houseInfo.append(
+                {
+                    'Address': address,
+                    'url' : url,
+                    'Zip Code' : zipcode,
+                    'Latitude' : latitude,
+                    'Longitude': longitude,
+                    'House Type' : housetype,
+                    'Lot Area': lotarea,
+                    'Lot Area Unit' : lotareaunit,
+                    'Currency' : currency,
+                    'Tax' : tax,
+                    'Bath': bath,
+                    'Bed': bed,
+                    'living Area': living, 
+                    'Price' : price
+                        
+                    }
+                )
         if deck:
                 deck = content.find('ul',{'class': 'photo-cards photo-cards_wow photo-cards_short'})
         else:
             deck = content.find('ul',{'class': 'photo-cards photo-cards_wow photo-cards_short photo-cards_extra-attribution'})
-            
         
-        
-            
         for card in deck.contents:
             
             script = card.find('script', {'type': 'application/ld+json'})
@@ -62,13 +152,13 @@ class ZillowScrapper():
                         {
                             'latitude': script_json['geo']['latitude'],
                             'longitude': script_json['geo']['longitude'],
-                            'bed': list(list(ul)[0])[0],
-                            'bath': list(list(ul)[1])[0],
-                            'floor size' : script_json['floorSize']['value'],
+                            'Bed': list(list(ul)[0])[0],
+                            'Bath': list(list(ul)[1])[0],
+                            'Floor Size' : script_json['floorSize']['value'],
                             'url': script_json['url'],
-                            'zipcode': script_json['address']['postalCode'],
-                            'locality': script_json['address']['addressLocality'],
-                            'price': card.find('div', {'class':'list-card-price'}).text
+                            'Zipcode': script_json['address']['postalCode'],
+                            'Locality': script_json['address']['addressLocality'],
+                            'Price': card.find('div', {'class':'list-card-price'}).text
                             })
                     
                 except KeyError:
@@ -94,7 +184,15 @@ class ZillowScrapper():
             
             
             for row in self.result:
-                writer.writerow(row)            
+                writer.writerow(row)    
+    def house_info(self, houseInfo):
+        with open('houseinfo.csv', 'w', newline = '') as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames =self.houseInfo[0].keys())
+            writer.writeheader()
+            
+            
+            for row in self.houseInfo:
+                writer.writerow(row)    
              
      
     def run(self):
@@ -109,6 +207,7 @@ class ZillowScrapper():
             self.parse(res.text)
             time.sleep(4)
             self.to_csv(self.result)
+            self.house_info(self.houseInfo)
         
 if __name__ == '__main__':
     scrapper = ZillowScrapper()
